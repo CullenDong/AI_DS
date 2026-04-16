@@ -1,0 +1,6 @@
+notebooks_root: data/notebooks
+db_path: data/notebook_kb.sqlite
+model: claude-sonnet-4-6
+max_tokens_out: 2048
+max_notebook_chars: 160000
+per_cell_char_cap: 4000
