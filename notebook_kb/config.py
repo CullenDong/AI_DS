@@ -17,6 +17,8 @@ class Config:
     max_tokens_out: int
     max_notebook_chars: int
     per_cell_char_cap: int
+    backend: str = "bedrock"  # "bedrock" | "anthropic"
+    aws_region: str = "us-west-2"
 
     @classmethod
     def load(cls, path: Path | None = None) -> "Config":
@@ -29,6 +31,8 @@ class Config:
             max_tokens_out=int(raw["max_tokens_out"]),
             max_notebook_chars=int(raw["max_notebook_chars"]),
             per_cell_char_cap=int(raw["per_cell_char_cap"]),
+            backend=raw.get("backend", "bedrock"),
+            aws_region=raw.get("aws_region", "us-west-2"),
         )
 
 

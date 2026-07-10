@@ -77,6 +77,50 @@ _TOOLS: dict[str, tuple[dict[str, Any], Callable[..., str]]] = {
         },
         viz_tools.plot_histogram,
     ),
+    "query_redshift": (
+        {
+            "name": "query_redshift",
+            "description": (
+                "Run a read-only SQL query against Amazon Redshift and return a text preview "
+                "(row count, columns, first N rows). Writes are blocked. Use this for exploration; "
+                "use load_redshift_to_frame when you need to keep the result for later tool calls."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "sql": {"type": "string", "description": "SELECT-only SQL query."},
+                    "database": {"type": "string", "description": "Redshift database name."},
+                    "bastion_ip": {
+                        "type": "string",
+                        "description": "Optional SSH bastion IP. Defaults to REDSHIFT_BASTION_IP env or the built-in default.",
+                    },
+                    "preview_rows": {"type": "integer", "default": 5},
+                },
+                "required": ["sql", "database"],
+            },
+        },
+        data_tools.query_redshift,
+    ),
+    "load_redshift_to_frame": (
+        {
+            "name": "load_redshift_to_frame",
+            "description": (
+                "Run a read-only Redshift SQL query and store the full result as a named in-memory "
+                "DataFrame for subsequent describe/value_counts/plot tool calls."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "sql": {"type": "string", "description": "SELECT-only SQL query."},
+                    "name": {"type": "string", "description": "Handle for the resulting DataFrame."},
+                    "database": {"type": "string", "description": "Redshift database name."},
+                    "bastion_ip": {"type": "string", "description": "Optional SSH bastion IP."},
+                },
+                "required": ["sql", "name", "database"],
+            },
+        },
+        data_tools.load_redshift_to_frame,
+    ),
 }
 
 

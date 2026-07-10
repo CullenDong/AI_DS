@@ -1,6 +1,20 @@
 notebooks_root: data/notebooks
 db_path: data/notebook_kb.sqlite
-model: claude-sonnet-4-6
+
+# Backend: "bedrock" uses AWS Bedrock (IAM auth, billed via AWS).
+#          "anthropic" uses the Anthropic API directly (needs ANTHROPIC_API_KEY).
+backend: bedrock
+aws_region: us-west-2
+
+# Model ID.
+#   - For backend=bedrock: use a Bedrock model id or cross-region inference profile id.
+#       e.g. "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+#            "anthropic.claude-sonnet-4-5-20250929-v1:0"
+#     Run `aws bedrock list-foundation-models --region us-west-2 --by-provider anthropic`
+#     to see the exact IDs your account has access to.
+#   - For backend=anthropic: use a plain model name like "claude-sonnet-4-6".
+model: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+
 max_tokens_out: 2048
 max_notebook_chars: 160000
 per_cell_char_cap: 4000

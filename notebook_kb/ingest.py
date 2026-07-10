@@ -32,7 +32,12 @@ def ingest(root: Path, db_path: Path) -> IngestReport:
     store.init_db(db_path)
     report = IngestReport()
 
-    files = [p for p in root.rglob("*.ipynb") if ".ipynb_checkpoints" not in p.parts]
+    skip_dirs = {".ipynb_checkpoints", "__MACOSX", ".virtual_documents"}
+    files = [
+        p
+        for p in root.rglob("*.ipynb")
+        if not (skip_dirs & set(p.parts) or p.name.startswith("._"))
+    ]
     report.scanned = len(files)
 
     with store.connect(db_path) as conn:

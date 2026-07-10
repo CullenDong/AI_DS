@@ -12,6 +12,18 @@ from .parse import parse_notebook
 
 PROMPT_PATH = REPO_ROOT / "prompts" / "notebook_summarize.md"
 
+
+def _build_client(cfg: Config):
+    """Lazy-import the right Anthropic client for the configured backend."""
+    if cfg.backend == "bedrock":
+        from anthropic import AnthropicBedrock
+        return AnthropicBedrock(aws_region=cfg.aws_region)
+    if cfg.backend == "anthropic":
+        from anthropic import Anthropic
+        return Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    raise ValueError(f"unknown backend: {cfg.backend!r} (expected 'bedrock' or 'anthropic')")
+
+
 REQUIRED_FIELDS = (
     "purpose",
     "inputs",
@@ -51,8 +63,7 @@ def summarize(
 ) -> SummarizeReport:
     model = model or cfg.model
     system_prompt = PROMPT_PATH.read_text()
-    from anthropic import Anthropic  # lazy so ingest/show/stats work without the SDK
-    client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    client = _build_client(cfg)
     report = SummarizeReport()
 
     store.init_db(cfg.db_path)
