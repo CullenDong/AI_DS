@@ -24,7 +24,7 @@ import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 SRC = ROOT / "data" / "input" / "casinoplus_2024_01-06.csv"
 OUT = ROOT / "data" / "output" / "casinoplus_top20_report.xlsx"
 PERIOD_MONTHS = 6  # data covers 2024-01..2024-06

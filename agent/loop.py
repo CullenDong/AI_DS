@@ -6,7 +6,7 @@ from typing import Any
 
 from anthropic import Anthropic
 
-from tools import registry
+from tools.agent_tools import registry
 
 MODEL = "claude-opus-4-7"
 MAX_TURNS = 20

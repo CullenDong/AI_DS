@@ -28,7 +28,7 @@ def _maybe_load_dotenv() -> None:
         from dotenv import load_dotenv
     except ImportError:
         return
-    repo_root = Path(__file__).resolve().parent.parent
+    repo_root = Path(__file__).resolve().parent.parent.parent
     for p in (Path.cwd() / ".env", repo_root / ".env"):
         if p.exists():
             load_dotenv(dotenv_path=str(p), override=False)

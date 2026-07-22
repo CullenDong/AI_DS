@@ -21,7 +21,7 @@ import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 SRC = ROOT / "data" / "input" / "ivi_game_all.csv"
 OUT = ROOT / "data" / "output" / "ivi_game_all_report.xlsx"
 TEXT_COLS = {"供應商", "遊戲名稱"}

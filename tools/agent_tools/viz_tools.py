@@ -8,7 +8,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from tools.state import FRAMES
+from tools.agent_tools.state import FRAMES
 
 OUTPUT_DIR = Path("outputs")
 

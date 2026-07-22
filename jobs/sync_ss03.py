@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from tools import redshift as rs  # noqa: E402
+from tools.db import redshift as rs  # noqa: E402
 
 DATABASE = "slot-machine"
 TABLE = "public.fct_bet_orders"
