@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>个性化挽留策略 A/B 实验设计 · v1.0</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral'});</script>
+<style>
+  :root{--fg:#1f2328;--muted:#656d76;--line:#d0d7de;--bg:#fff;--accent:#0969da;--soft:#f6f8fa;--warn:#9a6700;--warnbg:#fff8c5;}
+  *{box-sizing:border-box;}
+  body{margin:0;color:var(--fg);background:#eaeef2;font:15px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:940px;margin:32px auto;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:44px 56px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+  h1{font-size:26px;margin:0 0 6px;padding-bottom:14px;border-bottom:2px solid var(--fg);}
+  h2{font-size:20px;margin:34px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line);}
+  h3{font-size:16px;margin:22px 0 8px;}
+  .meta{color:var(--muted);font-size:13px;margin:14px 0 4px;}
+  .meta code{background:var(--soft);padding:1px 6px;border-radius:5px;}
+  .lead{background:var(--soft);border-left:4px solid var(--accent);padding:14px 18px;border-radius:0 8px 8px 0;margin:14px 0;}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px;}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top;}
+  th{background:var(--soft);font-weight:600;}
+  tr:nth-child(even) td{background:#fbfcfd;}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;}
+  .formula{background:#0d1117;color:#e6edf3;padding:12px 16px;border-radius:8px;font-family:ui-monospace,Menlo,monospace;font-size:13px;overflow-x:auto;}
+  .warn{background:var(--warnbg);border-left:4px solid var(--warn);padding:10px 16px;border-radius:0 8px 8px 0;margin:12px 0;font-size:14px;}
+  .pill{display:inline-block;background:var(--accent);color:#fff;font-size:12px;padding:2px 10px;border-radius:20px;margin-right:6px;}
+  .mermaid{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:18px;margin:16px 0;text-align:center;}
+  ul{padding-left:22px;}
+  hr{border:0;border-top:1px solid var(--line);margin:28px 0;}
+  .toc{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:14px 20px;font-size:14px;columns:2;}
+  .toc a{color:var(--accent);text-decoration:none;}
+  strong.k{color:#0a3069;}
+  @media print{body{background:#fff}.wrap{border:0;box-shadow:none;margin:0;max-width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>个性化挽留策略 A/B 实验设计（HMM 状态分层）· v1.0</h1>
+<div class="meta">游戏：FM01（捕鱼大师）· 数据表：<code>transform-agfish-game.public.bullet</code></div>
+<div class="meta">配套：A/B 实验平台 PRD v0.2 · 分组方案 <code>AB分组方案设计_v0.1.md</code></div>
+<div class="meta">起草：2026-08-13 · 状态：<span class="pill">draft</span>（时间线为示例，正式日期以排期为准）</div>
+<div class="meta">layer：<code>player_value_intervention</code> · mutex_group：<code>retention_intervention</code></div>
+
+<div class="toc">
+  <a href="#s1">1 假设</a> · <a href="#s2">2 背景与目标</a> · <a href="#s3">3 分析人群与分组</a> ·
+  <a href="#s4">4 变量</a> · <a href="#s5">5 指标</a> · <a href="#s6">6 统计设计</a> ·
+  <a href="#s7">7 数据质量与 SRM</a> · <a href="#s8">8 灰度与紧急停止</a> ·
+  <a href="#s9">9 时间线与验证窗口</a> · <a href="#s10">10 决策框架</a> ·
+  <a href="#s11">11 风险与开放问题</a> · <a href="#s12">12 附录</a>
+</div>
+
+<h2 id="s1">1. 假设（Hypothesis）</h2>
+<div class="lead"><strong>给处于不同生命周期状态（HMM：T1 / S1-low / S2-engaged / S3-escaped）的玩家开启个性化挽留策略（ON），相较不开启（OFF/holdout），能显著提升其 D7 留存与转化，且不恶化净收入、付费与风控护栏。</strong></div>
+<p>派生子假设（每 HMM 状态独立检验）：</p>
+<ul>
+  <li><strong class="k">H-S3</strong>（escaped/流失）：挽留对高流失风险人群提升最大（重点验证）。</li>
+  <li><strong class="k">H-S1</strong>（low）：挽留能把低活跃拉回活跃。</li>
+  <li><strong class="k">H-S2</strong>（engaged）：挽留对已活跃人群边际提升有限（可能无效，验证是否浪费成本）。</li>
+  <li><strong class="k">H-T1</strong>（初始）：挽留对新客/首触早期留存的影响（含义待确认）。</li>
+</ul>
+<p>启动后<strong>冻结</strong>，改变假设 → 新建实验。</p>
+
+<h2 id="s2">2. 背景与目标</h2>
+<p>个性化挽留系统已上线并按生命周期给玩家打 <code>CR_FISHING_V1:Tk</code> 标签、施加加成，但<strong>当前没有干净对照</strong>来量化"挽留到底带来多少增量、对哪类人有效"。本实验建立<strong>挽留 ON vs OFF 的随机对照</strong>，并用<strong>处理无关的 HMM 状态</strong>分层，回答：挽留的因果增量，以及对哪种生命周期状态最该投入。</p>
+
+<h2 id="s3">3. 分析人群与分组</h2>
+<ul>
+  <li><strong>subject_type</strong>：FM01 玩家账号（当前用户 ID 体系，不依赖 OneID）。</li>
+  <li><strong>eligibility（筛选逻辑）</strong>：① 排除 <strong>风控</strong>(sticky，套利农场已含在内)；② 排除 <strong>dynamic_rtp 臂</strong>(吃 RTP，混淆)；③ 剩余 = 挽留臂(ON) + holdout(OFF)，两臂均 RTP-off。</li>
+  <li><strong>分层维度（HMM，处理无关，冻结）</strong>：<code>T1 / S1 low / S2 engaged / S3 escaped</code>，从行为序列算出、与是否被挽留无关 → 两臂都能算 → 无 post-treatment 偏差。</li>
+  <li><strong>处理臂</strong>：Control = 挽留 OFF（holdout）；Variant = 挽留策略 ON。</li>
+  <li><strong>终端格</strong>：4 状态 × 2 臂 = <strong>8 格</strong>。</li>
+</ul>
+
+<div class="mermaid">
+flowchart TB
+  ALL["全体活跃玩家"] --> RC{"风控?（含套利农场）"}
+  RC -->|是| RCG["风控组 sticky 出局"]
+  RC -->|否| POP["实验人群"]
+  POP --> DYN["dynamic_rtp 臂<br/>单独 RTP 实验"]
+  POP --> RAB["挽留 AB 人群<br/>挽留(ON)+holdout(OFF)，均 RTP-off"]
+  RAB --> H{"HMM 状态分层"}
+  H --> T1["T1"] --> T1c["OFF | ON"]
+  H --> S1["S1 low"] --> S1c["OFF | ON"]
+  H --> S2["S2 engaged"] --> S2c["OFF | ON"]
+  H --> S3["S3 escaped"] --> S3c["OFF | ON"]
+</div>
+
+<h2 id="s4">4. 变量（Control / Variant）</h2>
+<table>
+  <tr><th></th><th>内容</th><th>约束</th></tr>
+  <tr><td><strong>Control</strong></td><td>不施加个性化挽留（holdout，保持基准体验）</td><td>可追溯的基准配置版本</td></tr>
+  <tr><td><strong>Variant</strong></td><td>开启现行个性化挽留策略 <code>CR_FISHING_V1</code>（含加成/触达）</td><td>Phase 1 仅一个 Variant；策略实质变化则结束重开</td></tr>
+</table>
+<p class="meta">若后续比"挽留策略 A vs B"，属另一实验（两臂皆 ON，在挽留臂内再切），本实验不含。</p>
+
+<h2 id="s5">5. 指标</h2>
+<h3>5.1 主指标（启动前冻结）</h3>
+<p><strong>D7 留存率</strong>：cohort 玩家在入组日 +7 自然日仍有任意 FM01 有效投注的比例。统计主体=玩家；分析人群=ITT；窗口=D7；时区=北京(UTC+8)。</p>
+<h3>5.2 次要指标（观察，不判胜负）</h3>
+<p>D1、D3 留存；状态跃迁率（S3→S2/S1 回流、S1→S2 提升）；人均投注次数/额。</p>
+<h3>5.3 护栏指标（每项设停止阈值）</h3>
+<table>
+  <tr><th>护栏</th><th>口径</th><th>停止阈值（示例，待批准）</th></tr>
+  <tr><td>人均净收入 / ARPU</td><td>(投注−派彩)/人</td><td>Variant 相对 Control 下降 &gt; 5%</td></tr>
+  <tr><td>付费率</td><td>付费用户占比</td><td>下降 &gt; 3pp</td></tr>
+  <tr><td>整层 RTP</td><td>派彩/投注</td><td>Variant RTP 越界（如 &gt;100%，防放水被套利）</td></tr>
+  <tr><td>客诉 / 投诉率</td><td>投诉工单/人</td><td>显著上升</td></tr>
+  <tr><td>曝光完整性</td><td>exposure/assignment</td><td>&lt; 阈值触发数据质量 invalid</td></tr>
+</table>
+
+<h2 id="s6">6. 统计设计</h2>
+<ul>
+  <li><strong>analysis_population</strong>：ITT（默认）。未曝光的 assignment 仍进主分析，曝光完整性作诊断。</li>
+  <li><strong>固定周期</strong>：预设 minimum_duration 与目标样本，到达前不因普通显著性提前停。</li>
+  <li><strong>alpha = 0.05（双侧）</strong>，<strong>power = 0.8</strong>（具体值由数据负责人批准）。</li>
+  <li><strong>分层分析</strong>：每个 HMM 状态内做两比例检验（ON vs OFF）；多状态用预注册多重比较校正（如 Holm）。</li>
+</ul>
+<h3>6.1 每臂样本量需求（主指标 D7 留存）</h3>
+<div class="formula">n/arm = (z_&alpha;/2 + z_&beta;)&sup2; &middot; [p1(1-p1)+p2(1-p2)] / (p1-p2)&sup2;</div>
+<table>
+  <tr><th>HMM 状态</th><th>基线 D7（待标定）</th><th>MDE +3pp</th><th>MDE +5pp</th><th>MDE +8pp</th></tr>
+  <tr><td>T1 初始</td><td>15%</td><td>2,399</td><td>903</td><td>374</td></tr>
+  <tr><td>S1 low</td><td>10%</td><td>1,771</td><td>683</td><td>291</td></tr>
+  <tr><td>S2 engaged</td><td>30%</td><td>3,760</td><td>1,374</td><td>546</td></tr>
+  <tr><td>S3 escaped</td><td>5%</td><td>1,056</td><td>432</td><td>197</td></tr>
+</table>
+<div class="warn"><strong>关键约束</strong>：需求为<strong>每臂每状态</strong>。Control 来自 holdout（人群较小），是样本瓶颈——单波不够则<strong>跨波累计</strong>到目标样本再读数。最终数字待 HMM 各状态实际人数分布 + 真实基线 D7 标定后锁定。脚本：<code>jobs/ab_testing/ab_sample_size.py</code>。</div>
+
+<h2 id="s7">7. 数据质量与 SRM</h2>
+<ul>
+  <li><strong>双层 SRM</strong>：assignment 层 + exposure 层分别比对实际 vs 预设比例。</li>
+  <li><strong>分状态 SRM</strong>：8 个终端格实际比例与预期比对，任一 P0 失败 → 结论锁定。</li>
+  <li><strong>曝光口径</strong>：ON/OFF 两臂同一曝光触发口径，去重。</li>
+  <li><strong>右截断</strong>：末尾入组 cohort 的 D7 未成熟时不计入主分析（见 §9）。</li>
+</ul>
+
+<h2 id="s8">8. 灰度扩量与紧急停止</h2>
+<ul>
+  <li><strong>ramp_plan</strong>：小流量起步 → 每阶段检查（SRM/护栏/RTP/QA/上阶段最短观察）→ 逐步扩量；扩量不改变已分组用户组别。</li>
+  <li><strong>emergency_stop_rule</strong>：触发 = 护栏越界 / 严重 SRM / RTP 异常放水 / 客诉激增。停止后新增决策回到基准（挽留 OFF）；已产生加成/订单不回滚；恢复需新批准。</li>
+</ul>
+
+<h2 id="s9">9. 时间线与验证窗口（示例，日期以排期为准）</h2>
+<table>
+  <tr><th>阶段</th><th>日期（示例）</th><th>内容 / 验证</th></tr>
+  <tr><td>G0 设计冻结</td><td>2026-08-20</td><td>假设/指标/HMM 口径/护栏阈值/样本量关闭 to_be_confirmed</td></tr>
+  <tr><td>QA + 数据链路就绪</td><td>08-20 ~ 08-27</td><td>测试身份验证分组；assignment/exposure 双事件打通</td></tr>
+  <tr><td>灰度 ramp 起步</td><td>2026-08-28</td><td>小流量；查 SRM/护栏/RTP，健康后扩量</td></tr>
+  <tr><td>全量运行</td><td>2026-09-04</td><td>达比例上限；进入正式 cohort 累计</td></tr>
+  <tr><td>最短运行 minimum_duration</td><td>14 天</td><td>09-04 ~ 09-18 为主 cohort 入组窗口（覆盖 2 个完整周周期）</td></tr>
+  <tr><td><strong>D7 验证窗口成熟</strong></td><td><strong>2026-09-25</strong></td><td>最后入组 cohort（09-18）+7 天 → 主指标可读</td></tr>
+  <tr><td>结论评审 readout</td><td>2026-09-26</td><td>主指标/护栏/SRM/区间/样本成熟度出报告</td></tr>
+  <tr><td>决策 &amp; rollout</td><td>2026-09-28+</td><td>ship→灰度全量 / extend / stop / investigate</td></tr>
+</table>
+<div class="warn"><strong>验证时间（观测窗口）口径：</strong><br>
+• 每个 cohort 的 D1/D3/D7 分别在其<strong>入组日 +1/+3/+7</strong> 成熟。<br>
+• 主指标 D7 需等窗口内<strong>最后一个 cohort</strong> 也满 7 天才完整（示例 09-25）。<br>
+• 实验末尾 7 天入组的 cohort，D7 未成熟 → <strong>右截断</strong>，不进主分析或触发 extend。<br>
+• minimum_duration 取 14 天以覆盖完整周内节律（工作日/周末差异），避免周期偏差。</div>
+
+<h2 id="s10">10. 决策框架（ship / extend / stop / investigate）</h2>
+<table>
+  <tr><th>主指标(D7)</th><th>护栏</th><th>数据质量</th><th>结论</th></tr>
+  <tr><td>达统计+业务门槛</td><td>可接受</td><td>正常</td><td><strong>ship</strong>（该状态开挽留）</td></tr>
+  <tr><td>方向对但样本/窗口不足</td><td>—</td><td>正常</td><td><strong>extend</strong></td></tr>
+  <tr><td>效果≈0 或负向</td><td>—</td><td>正常</td><td><strong>stop</strong>（该状态不投挽留，省成本）</td></tr>
+  <tr><td>正向</td><td>越界</td><td>—</td><td><strong>investigate</strong>（权衡）</td></tr>
+  <tr><td>—</td><td>—</td><td>无效/联合SRM</td><td><strong>investigate</strong>（锁定排查）</td></tr>
+</table>
+<p class="meta">允许分状态差异化结论：如 S3/S1 ship、S2 stop（对已活跃人群挽留无增量则不投）。</p>
+
+<h2 id="s11">11. 风险与开放问题</h2>
+<table>
+  <tr><th>编号</th><th>问题 / 风险</th><th>处理</th></tr>
+  <tr><td>OQ-1</td><td><code>T1</code> 状态确切含义与 HMM 四状态判定阈值</td><td>需给定义，写死分层口径</td></tr>
+  <tr><td>OQ-2</td><td>HMM 各状态实际人数分布</td><td>标定后回填 §6.1</td></tr>
+  <tr><td>OQ-3</td><td>真实基线 D7（各状态）</td><td>历史数据标定，替换示例值</td></tr>
+  <tr><td>OQ-4</td><td>holdout(OFF) 人群偏小 → 跨波累计或调 MDE</td><td>数据负责人定</td></tr>
+  <tr><td>OQ-5</td><td>挽留 OFF 是否涉及玩家权益/合规（停发已承诺加成）</td><td>风控/合规确认</td></tr>
+</table>
+
+<h2 id="s12">12. 附录：数据口径与复算</h2>
+<ul>
+  <li>组别/分割口径：<code>AB分组方案设计_v0.1.md</code></li>
+  <li>样本量脚本：<code>jobs/ab_testing/ab_sample_size.py</code></li>
+  <li>留存/行为口径（时区 UTC+8、BASE_FILTER、右截断）：沿用 <code>jobs/fishing/fm01_grouping.py</code> 及既有留存分析脚本。</li>
+  <li>HMM 状态：由挽留侧模型产出 <code>T1 / S1 / S2 / S3</code>，作为外部输入接入分层（口径待接口确认）。</li>
+</ul>
+
+<hr>
+<p class="meta">FM01 个性化挽留策略 A/B 实验设计 v1.0 · 2026-08-13 · draft</p>
+
+</div>
+</body>
+</html>
