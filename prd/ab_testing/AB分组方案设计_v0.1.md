@@ -94,10 +94,10 @@ flowchart TB
 
 | 状态 | 含义 |
 |---|---|
-| `T1` | 初始 / 首触状态（含义待确认） |
-| `S1` | low —— 低活跃 / 低投入 |
-| `S2` | engaged —— 活跃投入 |
-| `S3` | escaped —— 流失 / 逃逸 |
+| `T1` | 首日玩家（首次登录时间的第一个自然日） |
+| `S1` | low —— 低活跃 / 低投入（模型定义分类） |
+| `S2` | engaged —— 活跃投入（模型定义分类） |
+| `S3` | escaped —— 流失 / 逃逸（模型定义分类） |
 
 **处理臂：** Control（挽留 OFF / holdout） vs Variant（挽留策略 ON）。
 **分析：** 每个 HMM 状态内独立比较 Variant vs Control 的 D1/D3/D7 留存、转化（ITT）。

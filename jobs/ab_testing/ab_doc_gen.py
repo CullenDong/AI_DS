@@ -110,17 +110,17 @@ callout("给处于不同生命周期状态（HMM：T1 / S1-low / S2-engaged / S3
         fill="EAF2FB")
 para("派生子假设（每 HMM 状态独立检验）：", bold=True)
 bullets([
-    "H-S3（escaped/流失）：挽留对高流失风险人群提升最大（重点验证）。",
-    "H-S1（low）：挽留能把低活跃拉回活跃。",
-    "H-S2（engaged）：挽留对已活跃人群边际提升有限（可能无效，验证是否浪费成本）。",
-    "H-T1（初始）：挽留对新客/首触早期留存的影响（含义待确认）。",
+    "H-T1（初始）：挽留对新客/首触早期留存的影响（第一天玩家，计算时间为首次登陆时间的第一个自然日）。",
+    "H-S1（low）：模型定义分类。",
+    "H-S2（engaged）：模型定义分类。",
+    "H-S3（escaped/流失）：模型定义分类。",
 ])
 para("启动后冻结，改变假设 → 新建实验。", italic=True, color=MUTED)
 
 # ---------- 2 背景 ----------
 heading("2. 背景与目标")
-para("个性化挽留系统已上线并按生命周期给玩家打 CR_FISHING_V1:Tk 标签、施加加成，但当前没有干净对照来量化"
-     "“挽留带来多少增量、对哪类人有效”。本实验建立挽留 ON vs OFF 的随机对照，并用处理无关的 HMM 状态分层，"
+para("个性化挽留系统一期已上线，但当前没有干净对照来量化“挽留带来多少增量、对哪类人有效”。"
+     "本实验建立挽留 ON vs OFF 的随机对照，并用处理无关的 HMM 状态分层，"
      "回答：挽留的因果增量，以及对哪种生命周期状态最该投入。")
 
 # ---------- 3 人群 ----------
@@ -134,8 +134,17 @@ bullets([
     "处理臂：Control = 挽留 OFF（holdout）；Variant = 挽留策略 ON。",
     "终端格：4 状态 × 2 臂 = 8 格。",
 ])
-para("分割逻辑：全体 →（风控? 是→出局 / 否）→ 实验人群 →（dynamic_rtp 臂：单独 RTP 实验）+"
-     "（挽留 AB：挽留ON+holdout OFF，均 RTP-off）→ 按 HMM 状态 T1/S1/S2/S3 各分 OFF|ON。", color=MUTED, size=9.5)
+para("分割逻辑：全体 →（风控? 是→出局 / 否）→ 实验人群 → 三臂 dynamic_rtp（单独 RTP 实验，排除）/ "
+     "个性化挽留 retention（挽留 ON）/ default（holdout，挽留 OFF）；挽留 AB = retention(ON) vs default(OFF)，"
+     "两臂均 RTP-off，按 HMM 状态 T1/S1/S2/S3 各分 OFF|ON。", color=MUTED, size=9.5)
+
+# 分流分层图（PNG）
+DIAGRAM = Path(__file__).resolve().parents[2] / "prd" / "ab_testing" / "分流分层图.png"
+if DIAGRAM.exists():
+    doc.add_picture(str(DIAGRAM), width=Inches(6.3))
+    doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+    cap = para("图 1 · 挽留 AB 分流分层图", size=9, color=MUTED)
+    cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 # ---------- 4 变量 ----------
 heading("4. 变量（Control / Variant）")
