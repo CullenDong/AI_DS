@@ -39,11 +39,14 @@ s3://bituslabs-team-ai/SS03_raw_data/<cohort_folder>/dt=YYYY-MM-DD/part.parquet
 
 ## 已同步 cohort(截至 2026-07)
 
+> **旧准则口径(按注单 `partition_ab[0]`=ab_group_id 映射)**:`AB_TEST_A` = `4f1a46ca-…`(`normal_zero_95_kai`)、`AB_TEST_B` = `4a04df21-…`(BG97);AI = `jojpin-9mokha-rexQug`;其余全部 = Default。分组跟着注单走,同一玩家同一天可能出现在多个组。
+> (2026-08-17：已将早期反标的 S3/本地文件夹重命名为下表正确标签。)
+
 | folder | 条件 | 行数 |
 |---|---|---|
 | `AI_group_4.2-4.22` | AI组 `jojpin-9mokha-rexQug`,全部数学表 | 496K |
-| `AB_TEST_B_normal_zero_95_kai_6.10-7.8` | `4f1a46ca-…` + `normal_zero_95_kai` | 2.32M |
-| `AB_TEST_A_normal_Zero_BG97_Saitekika_BGadj_6.10-7.8` | `4a04df21-…` + BG97 表 | 1.57M |
+| `AB_TEST_A_normal_zero_95_kai_6.10-7.8` | `4f1a46ca-…` + `normal_zero_95_kai` | 2.32M |
+| `AB_TEST_B_normal_Zero_BG97_Saitekika_BGadj_6.10-7.8` | `4a04df21-…` + BG97 表 | 1.57M |
 | `AI_group_v3.2_5.22-6.16` / `AI_group_v4_6.18-7.9` | AI组 Pre/Post v4 | 579K / 414K |
 | `default_normal_zero_6.10-7.5` | default组 `wytsuj-fothap-5Qixda` + `normal_zero`(排除 `normal_kakuteiB`) | ~4.7M |
 
