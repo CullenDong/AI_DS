@@ -45,7 +45,7 @@ Deps: `redshift_connector paramiko python-dotenv boto3 pyarrow`. AWS creds in
 
 2. **Add to `COHORTS` in jobs/sync_ss03_cohorts.py**:
    - `folder`: descriptive summary the user can read back — group + table + date span,
-     e.g. `AI_group_4.2-4.22`, `AB_TEST_B_normal_zero_95_kai_6.10-7.8`,
+     e.g. `AI_group_4.2-4.22`, `AB_TEST_A_normal_zero_95_kai_6.10-7.8`,
      `default_normal_zero_6.10-7.5`.
    - `extra_where`: the cohort filters ON TOP of the base filters (game_id/COMPLETED/
      CNY/op_code exclusions live in `BASE_WHERE`). Keep the user's SQL semantics verbatim.
@@ -71,11 +71,12 @@ s3://bituslabs-team-ai/SS03_raw_data/<cohort_folder>/dt=YYYY-MM-DD/part.parquet
 local mirror: data/ss03/<cohort_folder>/dt=YYYY-MM-DD/part.parquet   (data/ gitignored)
 ```
 
-## Known IDs (verify with discovery before reuse — routing changes over time)
+## Known IDs — 旧准则(切换点之前), 按注单 partition_ab[0]=ab_group_id 映射 (verify with discovery before reuse)
 - AI 组: `jojpin-9mokha-rexQug`
-- AB_TEST_A: `4a04df21-c749-4808-8e55-3a0b74c084d2` (math `normal_Zero_BG97_Saitekika_BGadj`)
-- AB_TEST_B: `4f1a46ca-7baa-4452-9a40-ef21d9b33b57` (math `normal_zero_95_kai`)
-- default 组 (wy开头): `wytsuj-fothap-5Qixda` (math `normal_zero`; 同组还有 `normal_kakuteiB`)
+- AB_TEST_A: `4f1a46ca-7baa-4452-9a40-ef21d9b33b57` (math `normal_zero_95_kai`)
+- AB_TEST_B: `4a04df21-c749-4808-8e55-3a0b74c084d2` (math `normal_Zero_BG97_Saitekika_BGadj`)
+- default 组 (wy开头): `wytsuj-fothap-5Qixda` (math `normal_zero`; 同组还有 `normal_kakuteiB`)  ·  其余全部 = Default
+- 注意: 分组跟着注单走, 同一玩家同一天可能出现在多个组。 (2026-08-17: 早期把 A/B 标反过, S3/本地文件夹已按上述正确口径重命名。)
 
 ## Performance & schema notes
 - Filtered cohort day-queries run seconds-to-minutes; a full unfiltered day of
