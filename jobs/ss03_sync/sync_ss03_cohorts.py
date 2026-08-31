@@ -4,10 +4,11 @@ Layout: s3://bituslabs-team-ai/SS03_raw_data/<cohort_folder>/dt=YYYY-MM-DD/part.
 Local mirror: data/ss03/<cohort_folder>/dt=.../part.parquet
 Resumable: days already on S3 (size>0) are skipped.
 
-Cohorts (user-specified):
-  1. AI_group_4.2-4.22                      — AI 组, 2026-04-02..04-22, 全部数学表
-  2. AB_TEST_B_normal_zero_95_kai_6.10-7.8  — AB_TEST_B, 2026-06-10..07-08, 只 normal_zero_95_kai
-  3. AB_TEST_A_normal_Zero_BG97_Saitekika_BGadj_6.10-7.8 — AB_TEST_A, 同期, 只 BG97 表
+Cohorts — 旧准则口径 (AB_TEST_A=4f1a46ca/95_kai, AB_TEST_B=4a04df21/BG97):
+  1. AI_group_4.2-4.22                      — AI 组 jojpin-9mokha-rexQug, 2026-04-02..04-22, 全部数学表
+  2. AB_TEST_A_normal_zero_95_kai_6.10-7.8  — AB_TEST_A=4f1a46ca + normal_zero_95_kai, 2026-06-10..07-08
+  3. AB_TEST_B_normal_Zero_BG97_Saitekika_BGadj_6.10-7.8 — AB_TEST_B=4a04df21 + BG97, 同期
+  (2026-08-17 已把 S3/本地旧的反标文件夹重命名为上述正确标签)
 
 Common filters: game_id='SS03', status='COMPLETED', currency CNY,
 op_code NOT IN ('B26','TST','TSB','TSO'). Day slicing on created_at (UTC).
@@ -47,13 +48,13 @@ COHORTS = [
         "extra_where": "t.partition_ab[0] = 'jojpin-9mokha-rexQug'",
     },
     {
-        "folder": "AB_TEST_B_normal_zero_95_kai_6.10-7.8",
+        "folder": "AB_TEST_A_normal_zero_95_kai_6.10-7.8",
         "start": date(2026, 6, 10), "end": date(2026, 7, 8),
         "extra_where": ("t.partition_ab[0] = '4f1a46ca-7baa-4452-9a40-ef21d9b33b57' "
                         "AND t.math_table_id = 'normal_zero_95_kai'"),
     },
     {
-        "folder": "AB_TEST_A_normal_Zero_BG97_Saitekika_BGadj_6.10-7.8",
+        "folder": "AB_TEST_B_normal_Zero_BG97_Saitekika_BGadj_6.10-7.8",
         "start": date(2026, 6, 10), "end": date(2026, 7, 8),
         "extra_where": ("t.partition_ab[0] = '4a04df21-c749-4808-8e55-3a0b74c084d2' "
                         "AND t.math_table_id = 'normal_Zero_BG97_Saitekika_BGadj'"),
