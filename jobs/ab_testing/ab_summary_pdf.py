@@ -73,13 +73,13 @@ pdf = PdfPages(str(OUT))
 fig, ax = newp()
 txt(ax, 0.06, 0.965, "AB 分组规格汇总 · v0.1", size=18, bold=True)
 txt(ax, 0.06, 0.935, "覆盖 FM01 捕鱼 · SS03 · SS06 · SS07 · 汇总日 2026-08-24 · draft", size=9, color=MUTED)
-txt(ax, 0.06, 0.918, "SS03/SS06 为线上现状实测；SS07 为方案 v0.1（尚未上线）", size=8.5, color=MUTED)
+txt(ax, 0.06, 0.918, "SS03/SS06 为线上现状实测；SS07 为方案 v0.2（尚未上线）", size=8.5, color=MUTED)
 y = head(ax, 0.888, "0. 总览对照")
 rows = [
     ["FM01 捕鱼", "线上", "风控/农场剔除+策略/尾号", "风控·dynamic_rtp·retention(尾0/1)·default(尾2-9)", "D1/D3/D7留存(HMM)"],
     ["SS03", "线上", "两层:AB分组MOD10 + 暗保底(共用)", "第1层 Default(95kai)·A(BGTR97v2)·B(BGTR95v3)·AI(混合); 第2层 暗保底三档→kakuteiC", "RTP·留存·投注"],
     ["SS06", "线上", "MOD10(暗保底分组)", "holdout0-1(20%)·暗保底方案A 2-5(40%)·方案B 6-9(40%)", "保底体验·投注·留存"],
-    ["SS07", "方案v0.1", "MOD10 静态", "default0-3(40%)·testA4-6(30%)·testB7-9(30%)", "人均投注额(缩尾+中位)"],
+    ["SS07", "方案v0.2", "暗保底(方案A全体)+MOD100随机", "default(30%)·testA(20%)·testB(20%)·AI调控(30%:主MAB20+Micro#1 5+Micro#2 5)", "人均投注额(缩尾+中位)"],
 ]
 y = table(ax, y, ["游戏", "状态", "分流机制", "臂（占比）", "主指标"], rows,
           [0.06, 0.19, 0.28, 0.50, 0.80], fs=7, rh=0.02, wrapw=[8, 6, 13, 26, 13])
@@ -164,19 +164,24 @@ y = exp_table(ax, 0.925, "3.1 暗保底（garantizado）方案 A/B", [
 pdf.savefig(fig); plt.close(fig)
 
 # ==== §4 SS07：结构图 + 实验流程 ====
-img_page(pdf, D / "AB结构图_SS07.png", "4. SS07 · 分组结构（方案 v0.1）")
+img_page(pdf, D / "AB结构图_SS07.png", "4. SS07 · 分组结构（方案 v0.2）")
 fig, ax = newp()
-txt(ax, 0.06, 0.965, "4. SS07 · 实验流程（数学表 AB · 方案 v0.1）", size=14, bold=True)
-txt(ax, 0.06, 0.935, "同 96.5% RTP，测 payout 分布 + 命中率（表形），尚未上线", size=8.5, color=MUTED)
-y = exp_table(ax, 0.90, "4.1 数学表 AB（default / testA / testB）", [
-    ["目标", "同 RTP 96.5% 下，表形（命中率+payout分布）对投注行为/留存的影响"],
+txt(ax, 0.06, 0.965, "4. SS07 · 实验流程（数学表 AB + AI/MAB · 方案 v0.2）", size=14, bold=True)
+txt(ax, 0.06, 0.935, "同 96.5% RTP，测表形；AI 组在线试 MAB 新方向；暗保底方案A全体常开", size=8.5, color=MUTED)
+y = exp_table(ax, 0.90, "4.1 分流（MOD100 按比例随机分配）", [
+    ["目标", "同 RTP 96.5% 下，表形（命中率+payout分布）对投注行为/留存的影响；AI 组试 MAB"],
     ["人群", "SS07 全体 CNY 玩家（上线后）"],
-    ["分流", "MOD10：default 0-3(40%) / testA 4-6(30%) / testB 7-9(30%)（Dunnett 对照配比）"],
-    ["处理", "default=现行；testA=命中20%·低波动；testB=命中15%·中波动"],
+    ["分流", "MOD(user_id,100) 按比例随机分配（不手工指定尾号桶）"],
+    ["臂", "default 30% / testA 20% / testB 20% / AI 调控 30%"],
+    ["AI 三子组", "主组 20%（主 MAB）+ Micro-MAB#1 5%（First-Arm causal）+ Micro-MAB#2 5%（Reward Function）"],
+    ["处理", "default=现行；testA=命中20%·低波动；testB=命中15%·中波动；AI=MAB 动态调控"],
+])
+y = exp_table(ax, y - 0.02, "4.2 暗保底层 + 指标 + 分析", [
+    ["暗保底", "方案 A · 全体覆盖 · 非分组 · 常开背景（不设对照）"],
     ["主指标", "人均投注额（缩尾95%均值+中位，不用 log）；投注次数/活跃天"],
-    ["护栏", "三臂实测 RTP≈96.5% · 实测命中率复现 testA≈20%/testB≈15% · D1/D3/D7 留存"],
-    ["样本/时长", "SS03 代理：缩尾95% @20% MDE 需 ~1,275/臂；14 天一期可测 20% 差异"],
-    ["分析", "H1 testA vs default · H2 testB vs default · H3 testA vs testB（次要）；全 ITT"],
+    ["护栏", "各臂实测 RTP≈96.5% · 实测命中率复现 testA≈20%/testB≈15% · D1/D3/D7 留存"],
+    ["分析(静态表)", "H1 testA vs default · H2 testB vs default（H3 次要）；全 ITT"],
+    ["分析(AI)", "MAB 动态，看收敛后 arm 表现，不做等价 ITT 均值对比（口径与静态表不同）"],
 ])
 pdf.savefig(fig); plt.close(fig)
 
@@ -297,15 +302,19 @@ y = table(ax, y, ["游戏", "实验名(key)", "组别 value = 编码"], [
     ["FM01", "ftue", "variant=0 / control=1"],
     ["FM01", "strategy", "default=0 / dynamic_rtp=1 / customized_retention=2"],
     ["SS06", "dark_guarantee", "default=0 / TestA=1 / TestB=2"],
-    ["SS07", "math_table", "default=0 / TestA=1 / TestB=2"],
+    ["SS07", "math_table", "default=0 / TestA=1 / TestB=2 / AI=3"],
+    ["SS07", "ai_arm(仅AI臂)", "main=0 / micro1_firstarm=1 / micro2_reward=2"],
+    ["SS07", "dark_guarantee", "TestA=0(全体覆盖·非分组·常开)"],
 ], [0.06, 0.19, 0.44], fs=7.8, rh=0.02, wrapw=[6, 14, 44])
-y = wrap(ax, 0.07, y-0.002, "编码=组别固定枚举序(从0起)；default/variant/on 均为 0。", size=7.8, bullet=True, w=58)
+y = wrap(ax, 0.07, y-0.002, "编码=组别固定枚举序(从0起)；default/variant/on/main 均为 0。ai_arm 仅当 math_table=AI 时附加。", size=7.8, bullet=True, w=58)
 y -= 0.004
 y = head(ax, y, "7.3 示例")
 for s in ['SS03 新玩家 [math_table, ftue, dark_guarantee]：["math_table=default","ftue=variant","dark_guarantee=on"] = [0,0,0]',
           'SS03 老玩家(无 ftue)：["math_table=TestA","dark_guarantee=off"] = [1,1]',
           'FM01：["ftue=variant","strategy=customized_retention"] = [0,2]',
-          'SS06：["dark_guarantee=TestA"] = [1]　SS07：["math_table=TestB"] = [2]']:
+          'SS06：["dark_guarantee=TestA"] = [1]',
+          'SS07 静态臂：["math_table=TestB","dark_guarantee=TestA"] = [2,0]',
+          'SS07 AI Micro#1：["math_table=AI","ai_arm=micro1_firstarm","dark_guarantee=TestA"] = [3,1,0]']:
     y = wrap(ax, 0.08, y, s, size=7.8, w=64)
 y -= 0.004
 y = head(ax, y, "7.4 要求")

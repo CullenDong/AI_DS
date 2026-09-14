@@ -3,7 +3,7 @@
 > 适用游戏：SS07（老虎机，新游戏，尚未上线）· 数据表（上线后）：`slot-machine.public.fct_bet_orders`
 > 上位契约：`prd/ab_testing/2026-08-11 A-B 实验平台 PRD v0.2.html`
 > 口径 skill：`.claude/skills/ab-experiment-design/SKILL.md`
-> 起草：2026-08-21 · 状态：draft（样本量用 SS03 代理流量测算；SS07 上线后须用真实流量复核）
+> 起草：2026-08-21 · 更新：分流改为 MOD(user_id,100) 按比例随机分配、加入 AI 调控组(30%,含主20%+2个5%小组);比例 default30/testA20/testB20/AI30;另叠一层暗保底(全体·方案A·非分组) · 状态：draft（AI 30%=MAB:主MAB 20% + Micro-MAB#1/#2 各5%;各 MAB 机制待算法侧定稿,见 §7）
 
 ---
 
@@ -13,9 +13,9 @@
 |---|---|
 | 试点游戏 | SS07（老虎机） |
 | 实验目的 | 在**同 RTP（96.5%）**下，测 **payout 分布 + 命中率(hit rate)** 对投注行为与留存的影响 |
-| 实验臂 | 三臂：`default` / `testA` / `testB`（均 96.5% RTP，仅表形不同） |
-| 分流哈希 | 复用 `user_id`，静态分组（不轮换、不引设备/OneID） |
-| 分流比例 | **default 40% / testA 30% / testB 30%**（Dunnett 对照配比） |
+| 实验臂 | `default` / `testA` / `testB` / **`AI` 调控（内含 AI主组 + 2 个小分组）** |
+| 分流哈希 | 复用 `user_id`，`MOD(user_id,100)`（每桶 1%），**按比例随机分配**，静态、终身稳定（不轮换、不引设备/OneID） |
+| 分流比例 | **default 30% / testA 20% / testB 20% / AI 30%**；AI 内部 = AI主组 20% + 小组1 5% + 小组2 5% |
 | 主指标 | **人均投注额**（缩尾均值 + 中位数双口径，**不用 log**） |
 | 判定阈(MDE) | **相对差异 20%**（受 14 天周期约束，见 §5） |
 | 实验周期 | **14 天一期** |
@@ -45,26 +45,34 @@
 
 ## 2. 实验臂与分流
 
-### 2.1 分流规则（静态，user 级，终身稳定）
+### 2.1 分流规则（`MOD(user_id,100)` · 按比例随机分配 · 静态终身稳定）
 
-按 `MOD(user_id, 10)` 十进制末位静态分组，每人终身固定一臂、不随时间/会话/期号变化：
+**桶 = `MOD(user_id, 100)`**（0–99,共 100 个桶,user_id 尾两位近似均匀 → 每桶 ≈ 1% 流量）。**按各组比例把 100 个桶随机划给各组**;一旦划定,每人终身固定一臂、不随时间/会话变化。
 
-| 臂 | 尾号 `MOD(user_id,10)` | 流量占比 | 角色 |
+| 组 | 占比 | 桶数(MOD100) | 角色 |
 |---|---|---|---|
-| **default** | 0、1、2、3 | 40% | 对照基准（现行表形） |
-| **testA** | 4、5、6 | 30% | 处理臂（高命中低波动） |
-| **testB** | 7、8、9 | 30% | 处理臂（中命中中波动） |
+| **default** | 30% | 30 桶 | 对照基准（现行表形） |
+| **testA** | 20% | 20 桶 | 处理臂（高命中低波动） |
+| **testB** | 20% | 20 桶 | 处理臂（中命中中波动） |
+| **AI 主组** | 20% | 20 桶 | AI 调控**主 MAB**（多臂老虎机动态调控·生产主线） |
+| **AI 小组1** | 5% | 5 桶 | **Micro-MAB #1 · First-Arm causal**（MAB 新方向探索） |
+| **AI 小组2** | 5% | 5 桶 | **Micro-MAB #2 · Reward Function**（MAB 新方向探索） |
 
-> **为何 40/30/30 而非等分**：两个关键对比都是「新表 vs default」（Dunnett 多处理对单一对照结构），最优配比给对照臂 ~√2 倍流量 → 提升 H1/H2 两个主对比的精度；同时复用尾号机制、与 SS03 现有体系一致。若更看重 testA vs testB 直接对比，可改等分 34/33/33。
-> **为何静态不轮换**：数学表实验需在**同一批人**上累积 D1/D3/D7 留存与投注行为，保 cohort 连续；FM01 那套「每期 +40 旋转重洗」用于 ON/OFF 干预实验，不适用于此。
+> **随机分配**:桶→组的映射是按比例的一次性随机划分(工程/配置侧生成、固定一份);**不手工指定哪个尾号归哪组**。下方 SQL 的连续区间只是「一种等价的固定划分」示例,可换成配置里的实际随机划分。
+> **为何 MOD100**:出现 5% 的 AI 小分组,MOD10(每档10%)切不出,需 MOD100(每桶1%)才能精确到 5%。
+> **为何静态不轮换**:数学表实验需在同一批人上累积 D1/D3/D7 留存与投注行为,保 cohort 连续。
 
 ### 2.2 分组判定 SQL（上线后落 `jobs/ss07_analysis/ss07_grouping.py`）
 
 ```sql
+-- 桶 = MOD(user_id,100),每桶 1%;以下为一种按比例的固定划分(实际以配置的随机划分为准)
 CASE
-  WHEN MOD(user_id, 10) IN (0,1,2,3) THEN 'default'
-  WHEN MOD(user_id, 10) IN (4,5,6)   THEN 'testA'
-  ELSE 'testB'                                  -- 7,8,9
+  WHEN MOD(user_id,100) < 30 THEN 'default'    -- 30%
+  WHEN MOD(user_id,100) < 50 THEN 'testA'      -- 20%
+  WHEN MOD(user_id,100) < 70 THEN 'testB'      -- 20%
+  WHEN MOD(user_id,100) < 90 THEN 'AI_main'    -- 20%（AI 主 MAB）
+  WHEN MOD(user_id,100) < 95 THEN 'AI_sub1'    -- 5%（Micro-MAB #1 First-Arm causal）
+  ELSE                            'AI_sub2'    -- 5%（Micro-MAB #2 Reward Function）
 END AS arm
 ```
 
@@ -78,14 +86,40 @@ AND op_code NOT IN ('B26','TST','TSB','TSO')
 
 ```mermaid
 flowchart TB
-  ALL["SS07 全体 CNY 玩家<br/>(by user_id)"] --> H["MOD(user_id,10) 静态哈希"]
-  H --> D["default 40%<br/>尾号 0-3 · 现行表形 · 基准"]
-  H --> A["testA 30%<br/>尾号 4-6 · 命中20% 低波动"]
-  H --> B["testB 30%<br/>尾号 7-9 · 命中15% 中波动"]
-  D --> CMP{"主对比"}
-  A --> CMP
-  B --> CMP
-  CMP --> R["H1: testA vs default<br/>H2: testB vs default<br/>H3: testA vs testB(次要)"]
+  ALL["SS07 全体 CNY 玩家<br/>MOD(user_id,100) 按比例随机分配"] --> D["default 30%"]
+  ALL --> A["testA 20%<br/>命中20% 低波动"]
+  ALL --> B["testB 20%<br/>命中15% 中波动"]
+  ALL --> AI["AI 调控 30% (MAB)"]
+  AI --> AIM["AI 主组 20%<br/>主 MAB"]
+  AI --> AIS1["AI 小组1 5%<br/>Micro-MAB #1<br/>First-Arm causal"]
+  AI --> AIS2["AI 小组2 5%<br/>Micro-MAB #2<br/>Reward Function"]
+```
+
+### 2.4 AI 调控组（MAB）说明
+
+AI 30% 用于 **MAB(多臂老虎机)动态调控**及其新方向探索,与 default/testA/testB 的「静态数学表」实验并列:
+
+- **AI 主组 20%**:主 MAB —— 生产主线的多臂动态调控。
+- **AI 小组1 5% · Micro-MAB #1 (First-Arm causal)**:测试「首臂因果」新方向的小流量探索组。
+- **AI 小组2 5% · Micro-MAB #2 (Reward Function)**:测试「奖励函数」新方向的小流量探索组。
+
+> 两个 Micro-MAB 各 5% 是**小流量探索臂**,与主 MAB 对照评估各自新方向的效果;具体机制(First-Arm causal 怎么改因果归因、Reward Function 换成什么奖励)待算法侧定稿(见 §7 OQ)。
+
+### 2.5 暗保底层（全体覆盖 · 方案A · 非分组）
+
+在上述 AB 分流之上叠加一层**暗保底**,**覆盖全体玩家、统一使用方案A**:
+
+- 因为全体同一方案(方案A),暗保底**不构成分组维度、不设对照** → 是所有臂(default/testA/testB/AI)**共同的背景环境**(类似 SS03 的暗保底,但这里单方案全量、非实验)。
+- 分析各 AB 臂时,**暗保底方案A 视为恒定背景**;各臂唯一差异仍是数学表表形 / AI 调控。
+- 若日后要测暗保底本身,再切"无暗保底对照"(参考 SS03 Future 暗保底做法),届时它才成为一个实验维度。
+
+```mermaid
+flowchart TB
+  DARK["暗保底 · 方案A（全体覆盖 · 常开背景 · 非分组）"] --> ALL["SS07 全体 CNY 玩家<br/>MOD(user_id,100) 按比例随机分配"]
+  ALL --> D["default 30%"]
+  ALL --> A["testA 20%"]
+  ALL --> B["testB 20%"]
+  ALL --> AI["AI 调控 30% (MAB)：主20% + Micro#1 5% + Micro#2 5%"]
 ```
 
 ---
@@ -145,7 +179,7 @@ SS07 无流量 → 用 **SS03 近 14 天 CNY 作代理**（同 slot、同人群�
 | 阶段 | 内容 |
 |---|---|
 | T0 上线 | SS07 三表按 §2 分流上线；确认 math_table_id 与 arm 映射落 `ss07_grouping.py` |
-| T0+1d | **SRM + 表形校验**：尾号均匀性、40/30/30 比例；实测命中率 testA≈20%/testB≈15%、三臂 RTP≈96.5% |
+| T0+1d | **SRM + 表形校验**：MOD100 桶均匀性、30/20/20/30 比例(含 AI 主20/小5/小5)；实测命中率 testA≈20%/testB≈15% |
 | T0 ~ T0+14d | 一期 = 14 天，累积投注行为 + D1/D3/D7 留存 |
 | T0+14d | 出报告：主指标缩尾均值+中位双口径、护栏、H1/H2/H3 判定（ship/extend/stop/investigate） |
 
@@ -153,7 +187,7 @@ SS07 无流量 → 用 **SS03 近 14 天 CNY 作代理**（同 slot、同人群�
 
 ## 6. 验证与 SRM
 
-- **SRM**：预设 40/30/30，实测长期比例偏离即暂停结论，排查分桶/曝光/数据链路。尾号均匀性作基线（各尾号 ≈10%）。
+- **SRM**：预设 default30/testA20/testB20/AI30(主20/小5/小5)，实测长期比例偏离即暂停结论，排查分桶/曝光/数据链路。MOD100 桶均匀性作基线（各桶 ≈1%）。
 - **表形校验**：实测命中率必须复现设计值（testA≈20%、testB≈15%）；实测倍率分布对齐设计的加/砍档位；否则表未正确投放。
 - **RTP 护栏**：三臂实测 RTP 都须 ≈96.5%，彼此无显著差 → 确认「唯一差异=表形」成立。
 - **ITT**：回到 assignment 人群分析，曝光完整性作诊断而非筛样本条件。
@@ -170,3 +204,6 @@ SS07 无流量 → 用 **SS03 近 14 天 CNY 作代理**（同 slot、同人群�
 | OQ-S3 | SS07 实际流量是否达到代理水平；若偏低，14 天是否够（可能需延长/合并期） |
 | OQ-S4 | 是否需要第 4 臂常驻 holdout 支持纵向（LTV/D30）测量（PRD Phase 2） |
 | OQ-S5 | 主指标缩尾档位定 95%（powered）还是 99%（更保守但欠功效）——本方案默认 95% |
+| OQ-S6 | AI 主 MAB / Micro-MAB #1(First-Arm causal) / #2(Reward Function) 的**具体机制**（各改什么）待算法侧定稿 |
+| OQ-S7 | AI(MAB) 是**动态调控**,评估口径与静态表 testA/testB 不同:除人均投注额/留存外,还须看 MAB 自身指标(累计 reward / RTP / regret);与静态臂如何对齐对比 |
+| OQ-S8 | AI 组 RTP 是固定 96.5% 还是 MAB 动态（若动态,RTP 护栏对 AI 组不适用,需单独口径） |

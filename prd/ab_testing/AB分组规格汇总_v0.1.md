@@ -13,7 +13,7 @@
 | **FM01 捕鱼** | 线上 | 风控/农场 sticky 剔除 + 策略/尾号 | 风控 · dynamic_rtp · retention(尾0/1) · default(尾2-9) | 个性化挽留 ON/OFF | D1/D3/D7 留存(HMM 分层) |
 | **SS03** | 线上 | **两层**：AB分组 MOD10 + 暗保底(共用) | 第1层 Default(95kai) · A(BGTR97_v2) · B(BGTR95_v3) · AI(混合)；第2层 暗保底三档→kakuteiC | 数学表表形 + 暗保底 | RTP · 留存 · 投注 |
 | **SS06** | 线上 | `MOD(user_id,10)`（暗保底分组） | holdout 0-1(20%) · 暗保底方案A 2-5(40%) · 暗保底方案B 6-9(40%) | 暗保底方案 A/B | 保底体验 · 投注 · 留存 |
-| **SS07** | 方案 v0.1 | `MOD(user_id,10)` 静态 | default 0-3(40%) · testA 4-6(30%) · testB 7-9(30%) | 数学表表形(同 96.5% RTP) | 人均投注额(缩尾+中位) |
+| **SS07** | 方案 v0.2 | **暗保底(方案A全体) + `MOD(user_id,100)` 按比例随机** | default(30%) · testA(20%) · testB(20%) · AI 调控(30%：主 MAB 20% + Micro-MAB#1 5% + Micro-MAB#2 5%) | 数学表表形(同 96.5% RTP) + AI(MAB)调控 | 人均投注额(缩尾+中位) |
 
 **共性**：均以 `user_id` 尾号做确定性静态哈希（终身稳定、可复算、不引设备/OneID）；分析用 ITT 人群；投注类指标一律缩尾均值 + 中位数双口径（规避鲸鱼偏斜）；上线后先查 SRM。
 **差异**：FM01 是「有无干预（挽留 ON/OFF）」的价值干预实验，且带风控/农场 sticky 剔除；SS03/SS06/SS07 是「换数学表/换功能方案」的机制实验，静态分臂、保 cohort 连续。
@@ -83,17 +83,20 @@ SS03 是**两层**设计：第 1 层 AB 分组决定基础数学表；第 2 层�
 
 ---
 
-## 4. SS07（方案 v0.1，尚未上线）
+## 4. SS07（方案 v0.2，尚未上线）
 
 ![SS07 分组结构](AB结构图_SS07.png)
 
-- **目的**：同 RTP 96.5% 下，测 payout 分布 + 命中率（表形）对投注行为与留存的影响（剥离 RTP 变量）。
-- **臂**（`MOD(user_id,10)` 静态）：
-  - `default` 尾号 0-3（40%）—— 现行表形 / 基准。
-  - `testA` 尾号 4-6（30%）—— 命中 20% · 低波动 · 小奖密集（加 1-5x、砍 50-100x）。
-  - `testB` 尾号 7-9（30%）—— 命中 15% · 中波动 · 中奖为主（加 2-10x、砍 20-100x）。
-- **主对比（ITT）**：H1 testA vs default · H2 testB vs default · H3 testA vs testB（次要）。40/30/30 为 Dunnett 对照配比。
-- **主指标**：人均投注额（缩尾 95% 均值 + 中位数，不用 log）；护栏三臂实测 RTP≈96.5%、实测命中率复现、D1/D3/D7 留存。MDE 20%、14 天一期。
+- **目的**：同 RTP 96.5% 下，测 payout 分布 + 命中率（表形）对投注行为与留存的影响（剥离 RTP 变量）；同时用 AI 组在线试验 MAB 调控新方向。
+- **分流机制**：`MOD(user_id,100)` **按比例随机分配**（不手工指定尾号桶；终身稳定、可复算）。
+- **臂**（占比）：
+  - `default`（30%）—— 现行表形 / 基准。
+  - `testA`（20%）—— 命中 20% · 低波动 · 小奖密集（加 1-5x、砍 50-100x）。
+  - `testB`（20%）—— 命中 15% · 中波动 · 中奖为主（加 2-10x、砍 20-100x）。
+  - `AI 调控`（30%，MAB 动态）：**主组 20%（主 MAB）** + **Micro-MAB #1 · 5%（First-Arm causal）** + **Micro-MAB #2 · 5%（Reward Function）**。两个小组用于测 MAB 新方向。
+- **暗保底层（方案 A · 全体覆盖 · 非分组）**：作为所有臂共同背景常开，不设对照。
+- **主对比（ITT，静态表）**：H1 testA vs default · H2 testB vs default（H3 testA vs testB 次要）。AI(MAB)是动态调控，评估口径与静态表不同（看 MAB 收敛后 arm 表现，不做等价 ITT 均值对比）。
+- **主指标**：人均投注额（缩尾 95% 均值 + 中位数，不用 log）；护栏各臂实测 RTP≈96.5%、实测命中率复现、D1/D3/D7 留存。
 - **口径（上线后建）**：`jobs/ss07_analysis/ss07_grouping.py`（对齐 ss03）；详情 `SS07_数学表AB方案_v0.1.md`。
 
 ---
@@ -251,9 +254,12 @@ FTUE 与数学表**合在一起**做 factorial(2×4 组合格),同一新人经�
 | FM01 | `ftue` | `variant`=0 / `control`=1 |
 | FM01 | `strategy` | `default`=0 / `dynamic_rtp`=1 / `customized_retention`=2 |
 | SS06 | `dark_guarantee` | `default`=0 / `TestA`=1 / `TestB`=2 |
-| SS07 | `math_table` | `default`=0 / `TestA`=1 / `TestB`=2 |
+| SS07 | `math_table` | `default`=0 / `TestA`=1 / `TestB`=2 / `AI`=3 |
+| SS07 | `ai_arm`（仅 AI 臂内） | `main`=0 / `micro1_firstarm`=1 / `micro2_reward`=2 |
+| SS07 | `dark_guarantee` | `TestA`=0（全体覆盖·非分组·常开背景） |
 
-> 编码 = 该实验组别的固定枚举序（从 0 起）；`default`/`variant`/`on` 均为 0。
+> 编码 = 该实验组别的固定枚举序（从 0 起）；`default`/`variant`/`on`/`main` 均为 0。
+> SS07 的 `dark_guarantee=TestA` 对全体常开（非分组）；`ai_arm` 仅当 `math_table=AI` 时附加。
 
 ### 7.3 示例
 
@@ -268,7 +274,12 @@ SS03 老玩家（TestA表·暗保底off，无 ftue）:
 FM01（variant·customized_retention）:
   文字: ["ftue=variant", "strategy=customized_retention"]     数字: [0, 2]
 
-SS06:  ["dark_guarantee=TestA"] = [1]      SS07:  ["math_table=TestB"] = [2]
+SS06:  ["dark_guarantee=TestA"] = [1]
+
+SS07 静态表臂（testB · 暗保底方案A全体常开）:
+  文字: ["math_table=TestB", "dark_guarantee=TestA"]     数字: [2, 0]
+SS07 AI 臂内 Micro-MAB #1（First-Arm causal）:
+  文字: ["math_table=AI", "ai_arm=micro1_firstarm", "dark_guarantee=TestA"]     数字: [3, 1, 0]
 ```
 
 ### 7.4 要求
