@@ -10,21 +10,36 @@
 
 | 游戏 | 状态 | 分流机制 | 臂（占比） | 实验对象 | 主指标 |
 |---|---|---|---|---|---|
-| **FM01 捕鱼** | 线上 | 风控/农场 sticky 剔除 + 策略/尾号 | 风控 · dynamic_rtp · retention(尾0/1) · default(尾2-9) | 个性化挽留 ON/OFF | D1/D3/D7 留存(HMM 分层) |
+| **FM01 捕鱼**（enlarge，2026-09-21 起） | 线上 | 农场 sticky 剔除 + `MOD(user_id,100)`（风控=策略不分组） | **dynamic_rtp 40% (尾00-39) · retention(CR) 30% (尾40-69) · default 30% (尾70-99)**（09-21 前为旧配比，见 §1） | 个性化挽留 + dynamic_rtp 扩面 | D1/D3/D7 留存(HMM 分层) |
 | **SS03** | 线上 | **两层**：AB分组 MOD10 + 暗保底(共用) | 第1层 Default(95kai) · A(BGTR97_v2) · B(BGTR95_v3) · AI(混合)；第2层 暗保底三档→kakuteiC | 数学表表形 + 暗保底 | RTP · 留存 · 投注 |
 | **SS06** | 线上 | `MOD(user_id,10)`（暗保底分组） | holdout 0-1(20%) · 暗保底方案A 2-5(40%) · 暗保底方案B 6-9(40%) | 暗保底方案 A/B | 保底体验 · 投注 · 留存 |
 | **SS07** | 方案 v0.2 | **暗保底(方案A全体) + `MOD(user_id,100)` 按比例随机** | default(30%) · testA(20%) · testB(20%) · AI 调控(30%：主 MAB 20% + Micro-MAB#1 5% + Micro-MAB#2 5%) | 数学表表形(同 96.5% RTP) + AI(MAB)调控 | 人均投注额(缩尾+中位) |
 
 **共性**：均以 `user_id` 尾号做确定性静态哈希（终身稳定、可复算、不引设备/OneID）；分析用 ITT 人群；投注类指标一律缩尾均值 + 中位数双口径（规避鲸鱼偏斜）；上线后先查 SRM。
-**差异**：FM01 是「有无干预（挽留 ON/OFF）」的价值干预实验，且带风控/农场 sticky 剔除；SS03/SS06/SS07 是「换数学表/换功能方案」的机制实验，静态分臂、保 cohort 连续。
+**差异**：FM01 是「有无干预（挽留 ON/OFF）」的价值干预实验，带农场 sticky 剔除（风控为策略、不分组）；SS03/SS06/SS07 是「换数学表/换功能方案」的机制实验，静态分臂、保 cohort 连续。
 
 ---
 
-## 1. FM01 捕鱼
+## 1b. FM01 捕鱼 · `dynamic_rtp_v3_CR_enlarge`（新实验，2026-09-21 21:00 UTC 起 · 当前线上）
+
+![FM01 enlarge 分组结构](../../data/output/ab_testing/AB结构图_FM01_dynamic_rtp_v3_CR_enlarge.png)
+
+- **实验名**：`dynamic_rtp_v3_CR_enlarge`。只改配比：`dynamic_rtp_v3` 40% / `CR 挽留` 30% / `default` 30%（P0 holdout）。分流键 `MOD(user_id,100)` 尾号后两位。
+- **臂**：dynamic_rtp = [0,40) 40% · retention(CR) = [40,70) 30% · default = [70,100) 30%。**无 group_name 变更**。
+- **切换点（DB 精确定位）**：2026-09-21 ~80 分钟停服部署内完成——停服前最后一条 bullet **2026-09-21 20:57:18 UTC（13:57:18 PDT）**、恢复后第一条 **22:17:20 UTC（15:17:20 PDT）**；代码分界取 **`2026-09-21 21:00:00 UTC`（14:00 PDT）**（断档区内，不误分）。
+- **SRM**：近 3 天 dynamic_rtp 41.0% / retention 30.3% / default 28.7% ≈ 40/30/30。
+- **风控/封控 = 策略、不分组**（命中者仍属其 user_id 所定臂）；农场为前置剔除。
+- **假设/指标**：H1 dynamic_rtp vs default · H2 CR 挽留 vs default（HMM 状态分层）· H3 两者相对；主指标 D1/D3/D7 留存（ITT·缩尾+中位），护栏 实测RTP/GGR/人均净亏（风控占比作协变量）。
+- **方案**：`FM01_AB方案_dynamic_rtp_v3_CR_enlarge_v0.1.md`；口径 `jobs/fishing/fm01_grouping.py`（`FM01_ENLARGE_UTC` + `GROUP_CASE`）；政策 `docs/FM01_分组政策.md`。
+
+---
+
+## 1. FM01 捕鱼（旧配比期，2026-09-21 21:00 UTC 之前）
 
 ![FM01 分组结构](AB结构图_FM01.png)
 
-- **优先级（记录级判定，从高到低）**：① 风控管理 sticky（反欺诈/多开/套利统一归入风控，人工可拉入、锁定，剔除出局）→ ② 其余进实验人群。
+- **优先级（记录级判定，从高到低）**：① 农场剔除（命中农场 PID → 剔除出实验人群）→ ② 其余按策略/尾号分组。
+- **风控/封控 = 策略，不是分组**：`RC_FISHING*` / `%RISK_CONTROL%` 只改子弹策略（RTP），**不参与分组、不单列风控组**，命中者仍属其原本所在组（dynamic_rtp/retention/default）。与 SS03 暗保底同理。
 - **实验臂**：
   - `dynamic_rtp` —— `strategy_name = DYNAMIC_RTP_V3`，RTP 动态优化。
   - `retention 挽留` —— 尾号 0/1 且上线（≥2026-07-31 UTC）后，个性化挽留 ON。

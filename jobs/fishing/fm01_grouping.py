@@ -1,13 +1,15 @@
 """FM01 玩家分组（group_tag）—— 唯一取数口径，供所有分析脚本复用。
 
-规则见 docs/FM01_分组政策.md（2026-07-30 版）。记录级（逐发子弹）判定，优先级从上到下：
-  1. DYNAMIC_RTP_V3            -> dynamic_rtp
-  2. RC_FISHING_*              -> risk_control
-  3. *RISK_CONTROL*            -> risk_control
-  4. 剩余 + event_timestamp >= 挽留上线 + user_id%10 in (0,1) -> retention
-  5. 其余                      -> default
+规则见 docs/FM01_分组政策.md。记录级（逐发子弹）判定，**有一个配比切换点**：
+  · 新配比（event_timestamp >= 2026-09-21 21:00 UTC = 14:00 PDT，dynamic_rtp_v3_CR_enlarge）——按 MOD(user_id,100)：
+      dynamic_rtp = [0,40) 40% · retention(CR) = [40,70) 30% · default = [70,100) 30%
+  · 旧配比（此前）：dynamic_rtp 按 strategy=DYNAMIC_RTP_V3；retention 尾号 0/1（20%）；其余 default。
 
-挽留上线：2026-07-30 16:00 PST = 2026-07-31 00:00 UTC（event_timestamp 为 UTC，直接比即可）。
+**风控/封控是策略，不是分组**：RC_FISHING* / %RISK_CONTROL% 只改子弹策略（RTP），不参与分组、
+不单列 risk_control 组；命中风控的子弹按上面的 dynamic_rtp/retention/default 规则归组。
+（与 SS03 暗保底同理：管控/保底类是策略层，不进分组 CASE。）
+
+时间点：挽留上线 2026-07-31 00:00 UTC；新配比上线 2026-09-21 21:00 UTC（=14:00 PDT，停服部署窗口内）。event_timestamp 为 UTC，直接比即可。
 
 用法：
   from jobs.fishing.fm01_grouping import GROUP_CASE           # 拿到 CASE 片段拼进任意 SQL
@@ -23,14 +25,26 @@ from tools.db import redshift as rs  # noqa: E402
 
 # 挽留系统上线分界（UTC；= 2026-07-30 16:00 PST）
 RETENTION_LAUNCH_UTC = "2026-07-31 00:00:00"
+# dynamic_rtp_v3_CR_enlarge 新配比上线（UTC）：dynamic_rtp 40% / CR挽留 30% / default 30%，
+# 按 MOD(user_id,100) 尾号后两位。DB 精确定位：变更在 2026-09-21 的 ~80 分钟停服部署窗口内完成——
+#   停服前最后一条 bullet = 2026-09-21 20:57:18 UTC（13:57:18 PDT）；
+#   恢复后第一条 bullet   = 2026-09-21 22:17:20 UTC（15:17:20 PDT），此时新 40/30/30 已生效（dynamic_rtp 落[40,100)=0）。
+#   即美西 09-21 约 13:57~15:17 PDT。取断档区内的 21:00 UTC(=14:00 PDT)作分界（无数据、不会误分）。
+#   方案 FM01_AB方案_dynamic_rtp_v3_CR_enlarge_v0.1.md。
+FM01_ENLARGE_UTC = "2026-09-21 21:00:00"
 
-# 权威分组判定表达式（引用列：strategy_name, event_timestamp, user_id）
+# 权威分组判定表达式（引用列：strategy_name, event_timestamp, user_id）。有一个配比切换点。
+# 风控/封控不进分组（是策略，只改子弹策略）；命中风控的子弹按 dynamic_rtp/retention/default 归组。
 GROUP_CASE = f"""CASE
-  WHEN strategy_name = 'DYNAMIC_RTP_V3'    THEN 'dynamic_rtp'
-  WHEN strategy_name LIKE 'RC_FISHING%'    THEN 'risk_control'
-  WHEN strategy_name LIKE '%RISK_CONTROL%' THEN 'risk_control'
+  WHEN event_timestamp >= '{FM01_ENLARGE_UTC}' THEN            -- 新配比 40/30/30，MOD(user_id,100)
+    CASE
+      WHEN MOD(user_id, 100) < 40 THEN 'dynamic_rtp'           -- [0,40)  40%
+      WHEN MOD(user_id, 100) < 70 THEN 'retention'             -- [40,70) 30%（CR 挽留）
+      ELSE 'default'                                            -- [70,100) 30%
+    END
+  WHEN strategy_name = 'DYNAMIC_RTP_V3'    THEN 'dynamic_rtp'   -- 旧：按策略（行为、非随机）
   WHEN event_timestamp >= '{RETENTION_LAUNCH_UTC}'
-       AND user_id % 10 IN (0, 1)          THEN 'retention'
+       AND user_id % 10 IN (0, 1)          THEN 'retention'     -- 旧：尾号 0/1 = 20%
   ELSE 'default'
 END"""
 
